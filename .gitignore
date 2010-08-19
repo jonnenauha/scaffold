@@ -48,3 +48,5 @@ ui_*.h
 *~
 *#
 
+# executables
+scaffold
