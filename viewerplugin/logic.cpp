@@ -10,6 +10,7 @@
 #include "llplugin/provider.hpp"
 #include "uiplugin/provider.hpp"
 #include "viewerplugin/logic.hpp"
+#include "viewerplugin/ui_login.hpp"
 
 #include <QtGui>
 
@@ -18,7 +19,7 @@
 namespace ViewerPlugin
 {
     Logic::Logic () : 
-        state (1), scheduler (0), session (0), stream (0)
+        state (0), scheduler (0), session (0), stream (0), login_ui(0)
     {
     }
 
@@ -41,6 +42,8 @@ namespace ViewerPlugin
             ctrl->state.on_value_change += bind (&Logic::on_app_state_change, this, _1);
             ctrl->delta.on_value_change += bind (&Logic::on_frame_update, this, _1);
         }
+        
+        login_ui = new LoginWidget(this, scheduler);
     }
 
     void Logic::finalize ()
@@ -65,11 +68,8 @@ namespace ViewerPlugin
 
             case 1:
                 {
+                    // old hard coded login state
                     state = 0;
-
-                    cout << "attempting login" << endl;
-                    scheduler->enqueue (new Framework::Task 
-                            (bind (&Logic::do_login, this, _1)));
                 }
                 break;
 
@@ -77,7 +77,9 @@ namespace ViewerPlugin
                 {
                     state = 0;
 
-                    cout << "begin streaming world" << endl;
+                    cout << "egin streaming world" << endl;
+                    login_ui->set_status("Begin streaming world");
+                    
                     scheduler->enqueue (new Framework::Task 
                             (bind (&Logic::do_start_world_stream, this, _1)));
                 }
@@ -88,6 +90,8 @@ namespace ViewerPlugin
                     state = 0;
 
                     cout << "waiting for world" << endl;
+                    login_ui->set_status("Waiting for world");
+
                     scheduler->enqueue (new Framework::Task 
                             (bind (&Logic::do_read_world_stream, this, _1)));
                 }
@@ -96,11 +100,7 @@ namespace ViewerPlugin
             case 4:
                 {
                     state = 0;
-
-                    cout << "quitting" << endl;
-                    
-                    stream->sendLogoutRequest ();
-                    QApplication::exit ();
+                    do_logout();
                 }
                 break;
 
@@ -108,21 +108,18 @@ namespace ViewerPlugin
                 break;
         }
     }
-    
-    void Logic::do_login (frame_delta_t delta)
-    {
-        Connectivity::LoginParameters parms;
 
-        //parms.insert ("first", "Test");
-        //parms.insert ("last", "User");
-        //parms.insert ("pass", "test");
-        parms.insert ("first", "d");
-        parms.insert ("last", "d");
-        parms.insert ("pass", "d");
-        parms.insert ("service", "http://localhost:8002");
-        //parms.insert ("service", "http://home.hulkko.net:9007");
-        //parms.insert ("service", "http://world.realxtend.org:9000");
-        //parms.insert ("service", "http://world.evocativi.com:8002");
+    void Logic::do_logout ()
+    {
+        cout << "quitting" << endl;
+
+        stream->sendLogoutRequest ();
+        QApplication::exit ();
+    }
+    
+    void Logic::do_login (frame_delta_t delta, Connectivity::LoginParameters parms)
+    {
+        cout << "attempting login" << endl;
         
         QFuture <Connectivity::Session *> login = service_session_manager->retire (parms);
 
@@ -139,7 +136,10 @@ namespace ViewerPlugin
         if (session->isConnected() && stream->isConnected())
             state = 2;
         else
-            state = 4;
+        {
+            login_ui->set_status("Offline: Login failed");
+            state = 0;
+        }
     }
 
     void Logic::do_start_world_stream (frame_delta_t delta)
@@ -153,6 +153,8 @@ namespace ViewerPlugin
         service_notification_manager->retire 
             (View::Notification (View::Notification::MESSAGE, "logged in!"));
 
+        login_ui->set_connected(true);
+        
         state = 3;
     }
 
@@ -161,7 +163,6 @@ namespace ViewerPlugin
         if (stream->waitForRead ())
         {
             while (true); // we have no idea when to quit atm
-
             state = 4;
         }
     }

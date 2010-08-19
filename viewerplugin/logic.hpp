@@ -12,6 +12,10 @@ namespace Scaffold
     {
         class Scheduler;
     }
+    namespace Connectivity
+    {
+        typedef QMap <QString, QString> LoginParameters;    
+    }
 }
 
 namespace LLPlugin
@@ -23,6 +27,7 @@ namespace LLPlugin
 namespace ViewerPlugin
 {
     using namespace Scaffold;
+    class LoginWidget;
 
     struct Logic : public Framework::Module
     {
@@ -31,6 +36,7 @@ namespace ViewerPlugin
         Framework::Scheduler    *scheduler;
         LLPlugin::Session       *session;
         LLPlugin::Stream        *stream;
+        LoginWidget             *login_ui;
 
         Logic ();
 
@@ -43,7 +49,8 @@ namespace ViewerPlugin
         void on_frame_update (frame_delta_t delta);
 
         // logic functions
-        void do_login (frame_delta_t delta);
+        void do_logout ();
+        void do_login (frame_delta_t delta, Connectivity::LoginParameters parms);
         void do_start_world_stream (frame_delta_t delta);
         void do_read_world_stream (frame_delta_t delta);
     };
